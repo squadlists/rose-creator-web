@@ -44,13 +44,13 @@
   <main class="main-layout">
 
     <!-- Colonna Sinistra (Selettore Partite o Squadre) -->
-    <section class="card" style="display: flex; flex-direction: column; max-height: calc(100vh - 100px);">
+    <section class="card card-sidebar">
       
       <!-- VISTA 1: PARTITE SERIE A -->
-      <div id="view-seriea" style="display: block; padding: 14px; overflow-y: auto; flex: 1;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
-          <span id="seriea-round-badge" style="font-size: 0.9rem; font-weight: 700; color: var(--accent-green);">
-            Serie A • Caricamento...
+      <div id="view-seriea" style="display: block; padding: 14px; flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px;">
+          <span id="seriea-round-badge" style="font-size: 0.95rem; font-weight: 700; color: var(--accent-green); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">
+            Serie A
           </span>
           <div style="display: flex; gap: 6px; align-items: center;">
             <div style="background: #111420; border: 1px solid var(--card-border); border-radius: 8px; padding: 2px; display: flex; gap: 2px;">

@@ -125,7 +125,12 @@ async function loadSerieAMatches(refresh = false) {
     state.serieaMatches = data.matches || [];
     state.serieaRound = data.round_title || 'Serie A';
 
-    document.getElementById('seriea-round-badge').textContent = `Serie A • ${state.serieaRound}`;
+    let cleanRound = (state.serieaRound || '3ª Giornata').replace(/Serie A\s*•?\s*/i, '').trim();
+    if (cleanRound.length > 30) {
+      const match = cleanRound.match(/(\d+[ªa]?\s+Giornata)/i);
+      cleanRound = match ? match[1] : '3ª Giornata';
+    }
+    document.getElementById('seriea-round-badge').textContent = `Serie A • ${cleanRound}`;
     statusLbl.textContent = `● ${state.serieaMatches.length} partite caricate con arbitri ufficiali`;
     statusLbl.style.color = '#00c853';
 

@@ -138,7 +138,11 @@ body {
 @media (max-width: 1024px) {
   .main-layout {
     grid-template-columns: 1fr;
-    padding: 12px;
+    padding: 10px;
+  }
+  .card-sidebar {
+    max-height: none !important;
+    overflow-y: visible !important;
   }
 }
 
@@ -148,6 +152,13 @@ body {
   border: 1px solid var(--card-border);
   border-radius: 12px;
   overflow: hidden;
+}
+
+.card-sidebar {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
 }
 
 /* Match Cards */

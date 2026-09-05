@@ -94,7 +94,16 @@ async def get_serie_a_matches(refresh: bool = False):
             m["def_ha"] = def_ha
             m["def_aa"] = def_aa
 
-        clean_badge = round_title.replace("ENILIVE - ", "").title() if round_title else "Giornata Serie A"
+        clean_badge = "3ª Giornata"
+        if round_title:
+            clean_badge = round_title.replace("ENILIVE - ", "").replace("DESIGNAZIONI ", "").strip().title()
+            if len(clean_badge) > 35 or "News" in clean_badge:
+                import re
+                m_g = re.search(r'(\d+[ªa]?\s+Giornata)', round_title, re.IGNORECASE)
+                if m_g:
+                    clean_badge = m_g.group(1).title()
+                else:
+                    clean_badge = "3ª Giornata"
         result = {
             "round_title": clean_badge,
             "count": len(matches),

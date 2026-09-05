@@ -536,6 +536,7 @@ def formatta_doppia_rosa_singola(squadra, giocatori, allenatore=None, formato="s
 _CAN_ROSTER_CACHE = {}
 
 def get_can_roster():
+    """Recupera l'organico CAN con nome e cognome completo degli arbitri."""
     global _CAN_ROSTER_CACHE
     if _CAN_ROSTER_CACHE:
         return _CAN_ROSTER_CACHE
@@ -549,132 +550,172 @@ def get_can_roster():
             if "Arbitri" in t.get_text():
                 table = t
                 break
-        if not table:
-            for t in soup.find_all("table"):
-                if "Sezione" in t.get_text():
-                    table = t
-                    break
         roster = {}
         if table:
-            for row in table.find_all("tr")[1:]:
-                cells = [c.get_text(strip=True) for c in row.find_all("td")]
-                if len(cells) >= 2:
-                    cognome = unidecode(cells[0]).strip().upper()
-                    nome = unidecode(cells[1]).strip().title()
-                    full = f"{nome} {cognome.title()}"
-                    roster[cognome] = full
+            for td in table.find_all("td"):
+                for div in td.find_all("div"):
+                    div.decompose()
+                raw = td.get_text().strip()
+                raw = re.sub(r'[\u200b\uFEFF\xa0]', ' ', raw).strip()
+                raw = re.sub(r'\s+', ' ', raw)
+                if not raw:
+                    continue
+                clean_name = raw.title()
+                parts = raw.split()
+                upper_words = [p for p in parts if p.isupper() and len(p) > 1]
+                surname_key = " ".join(upper_words) if upper_words else parts[-1].upper()
+                roster[surname_key] = clean_name
+                if upper_words:
+                    roster[upper_words[-1]] = clean_name
         _CAN_ROSTER_CACHE = roster
         return roster
-    except Exception:
+    except Exception as e:
         return {}
 
 def get_aia_referee_designations():
-    can_roster = get_can_roster()
-    url = "https://www.aia-figc.it/designazioni/can/"
-    req = urllib.request.Request(url, headers=WEB_HDR)
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        html = resp.read().decode("utf-8", errors="ignore")
-    soup = BeautifulSoup(html, "html.parser")
-    
-    art_url = None
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        text = a.get_text(" ", strip=True).upper()
-        if "SERIE A" in text and ("GIORNATA" in text or "CAMPIONATO" in text):
-            art_url = urljoin(url, href)
-            break
-            
-    if not art_url:
+    """Recupera l'abbinamento partita -> arbitro dall'ultimo articolo Serie A su AIA CAN."""
+    roster = get_can_roster()
+    try:
+        req = urllib.request.Request("https://www.aia-figc.it/designazioni/can/", headers=WEB_HDR)
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        soup = BeautifulSoup(html, "html.parser")
+        
+        serie_a_link = None
+        round_title = ""
         for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if "/dettaglio/" in href or "/designazioni/" in href:
-                art_url = urljoin(url, href)
+            txt = a.get_text()
+            if "SERIE A" in txt.upper() and "DESIGNAZIONI" in txt.upper():
+                serie_a_link = a["href"]
+                round_title = txt.strip()
                 break
                 
-    if not art_url:
-        return {}, {}, ""
-        
-    req2 = urllib.request.Request(art_url, headers=WEB_HDR)
-    with urllib.request.urlopen(req2, timeout=8) as resp:
-        art_html = resp.read().decode("utf-8", errors="ignore")
-    art_soup = BeautifulSoup(art_html, "html.parser")
-    
-    round_title = ""
-    for tag in art_soup.find_all(["h1", "h2", "h3", "div"]):
-        t = tag.get_text(strip=True).upper()
-        if "SERIE A" in t and "GIORNATA" in t:
-            round_title = tag.get_text(strip=True)
-            break
+        if not serie_a_link:
+            return {}, {}, round_title
             
-    text_content = art_soup.get_text("\n")
-    lines = [l.strip() for l in text_content.splitlines() if l.strip()]
-    
-    pair_map = {}
-    single_map = {}
-    
-    for i, line in enumerate(lines):
-        line_clean = unidecode(line)
-        if (" - " in line_clean or " – " in line_clean) and not line_clean.startswith("CAN"):
-            sep = " - " if " - " in line_clean else " – "
-            parts = line_clean.split(sep, 1)
-            p1 = parts[0].strip().lower()
-            p2 = parts[1].strip().lower()
-            if len(p1) > 2 and len(p2) > 2 and not p1.startswith("ore ") and not p1.startswith("h."):
-                ref_found = None
-                for j in range(i+1, min(i+12, len(lines))):
-                    sub = lines[j].strip()
-                    if (" - " in sub or " – " in sub) and not sub.upper().startswith("A.E."):
+        if not serie_a_link.startswith("http"):
+            serie_a_link = "https://www.aia-figc.it" + ("/" if not serie_a_link.startswith("/") else "") + serie_a_link
+            
+        req2 = urllib.request.Request(serie_a_link, headers=WEB_HDR)
+        with urllib.request.urlopen(req2, timeout=6) as resp2:
+            art_html = resp2.read().decode("utf-8", errors="ignore")
+            
+        art_soup = BeautifulSoup(art_html, "html.parser")
+        content_div = art_soup.find("section", id="content") or art_soup
+        p_tags = [p.get_text().strip() for p in content_div.find_all("p") if p.get_text().strip()]
+        
+        pair_map = {}
+        single_map = {}
+        
+        for i, p in enumerate(p_tags):
+            if any(sep in p for sep in ["–", "-", "—"]) and any(d in p.lower() for d in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì", "h.", "h "]):
+                match_part = p
+                for kw in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì"]:
+                    if kw in match_part.lower():
+                        match_part = re.split(kw, match_part, flags=re.I)[0].strip()
                         break
-                    m_ae = re.search(r'\b(?:A\.?E\.?|ARBITRO)\s*:?\s*([A-Z\s]+)', sub, re.IGNORECASE)
-                    if m_ae:
-                        raw_name = m_ae.group(1).strip()
-                        raw_name = re.split(r'\(|sez|\bsez\b|,|-', raw_name, flags=re.IGNORECASE)[0].strip()
-                        c_upper = unidecode(raw_name).upper()
-                        ref_found = can_roster.get(c_upper, raw_name.title())
-                        break
-                if ref_found:
-                    pair_map[(p1, p2)] = ref_found
-                    single_map[p1] = ref_found
-                    single_map[p2] = ref_found
+                
+                parts = re.split(r'[–—\-]', match_part)
+                if len(parts) >= 2:
+                    h_team = unidecode(parts[0]).strip().lower()
+                    a_team = unidecode(parts[1]).strip().lower()
+                    
+                    ref_raw = ""
+                    if i + 1 < len(p_tags):
+                        cand = p_tags[i+1].strip()
+                        cand = re.sub(r'\(.*?\)', '', cand).strip()
+                        if ":" not in cand and "–" not in cand and len(cand) < 35:
+                            ref_raw = cand
+                            
+                    # Cerca match su organico CAN
+                    ref_clean = re.sub(r'[^A-Z\s]', '', ref_raw.upper()).strip()
+                    ref_full = None
+                    if ref_clean in roster:
+                        ref_full = roster[ref_clean]
+                    elif ref_clean.split() and ref_clean.split()[-1] in roster:
+                        ref_full = roster[ref_clean.split()[-1]]
+                    else:
+                        for skey, sfullname in roster.items():
+                            if len(skey) > 3 and skey in ref_raw.upper():
+                                ref_full = sfullname
+                                break
+                                
+                    if not ref_full:
+                        ref_full = ref_raw.title() if ref_raw else "Da definire"
+                        
+                    pair_map[(h_team, a_team)] = ref_full
+                    single_map[h_team] = ref_full
+                    single_map[a_team] = ref_full
+                    
+        return pair_map, single_map, round_title
+    except Exception as e:
+        return {}, {}, ""
 
     return pair_map, single_map, round_title
 
 def get_lega_serie_a_matches():
-    url = "https://www.legaseriea.it/it/serie-a"
-    req = urllib.request.Request(url, headers=WEB_HDR)
+    """Recupera le partite della giornata da Lega Serie A con date e orari effettivi."""
+    req = urllib.request.Request("https://www.legaseriea.it/it/serie-a", headers=WEB_HDR)
     with urllib.request.urlopen(req, timeout=8) as resp:
         html = resp.read().decode("utf-8", errors="ignore")
-    soup = BeautifulSoup(html, "html.parser")
-    
-    data_match_elements = soup.find_all(attrs={"data-match": True})
-    matches = []
-    seen = set()
-    
-    for el in data_match_elements:
-        try:
-            import json
-            val = el["data-match"]
-            d = json.loads(val)
-            h = d.get("homeTeam", {}).get("name", "")
-            a = d.get("awayTeam", {}).get("name", "")
-            dt = d.get("matchDateLocal", "")
-            if h and a and (h, a) not in seen:
-                seen.add((h, a))
-                matches.append({
-                    "home": h,
-                    "away": a,
-                    "home_getty": to_getty_team_name(h),
-                    "away_getty": to_getty_team_name(a),
-                    "date_local": dt,
-                })
-        except Exception:
-            pass
-
-    if not matches:
-        rows = soup.find_all(class_=re.compile(r'fixture|match|partita', re.IGNORECASE))
-        for r in rows:
-            t = r.get_text(" ", strip=True)
-            if " - " in t or " vs " in t:
-                pass
-                
-    return matches
+        
+    idx = html.find('initialMatches')
+    if idx == -1:
+        return []
+        
+    sub = html[idx:]
+    arr_start = sub.find('[')
+    brackets = 0
+    in_str = False
+    escape = False
+    arr_end = -1
+    for i, ch in enumerate(sub[arr_start:]):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\':
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if not in_str:
+            if ch == '[':
+                brackets += 1
+            elif ch == ']':
+                brackets -= 1
+                if brackets == 0:
+                    arr_end = arr_start + i + 1
+                    break
+                    
+    if arr_end == -1:
+        return []
+        
+    raw_json_str = sub[arr_start:arr_end]
+    import json
+    try:
+        matches_data = json.loads(raw_json_str)
+    except Exception:
+        raw_json_str_unescaped = raw_json_str.replace('\\"', '"').replace('\\\\', '\\')
+        matches_data = json.loads(raw_json_str_unescaped)
+        
+    results = []
+    for m in matches_data:
+        dt_str = m.get("matchDateLocal", "")
+        home_off = m.get("home", {}).get("officialName", "")
+        away_off = m.get("away", {}).get("officialName", "")
+        status = m.get("status", "")
+        h_score = m.get("homeScorePush")
+        a_score = m.get("awayScorePush")
+        
+        results.append({
+            "date_local": dt_str,
+            "home": home_off,
+            "away": away_off,
+            "home_getty": to_getty_team_name(home_off),
+            "away_getty": to_getty_team_name(away_off),
+            "status": status,
+            "home_score": h_score,
+            "away_score": a_score,
+        })
+    return results
