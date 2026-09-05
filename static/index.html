@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1017">
+  
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rose Creator">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  
+  <link rel="icon" type="image/png" href="/static/icons/favicon.png">
+  <link rel="manifest" href="/manifest.json">
+  
+  <title>Rose Creator by Giuseppe Maffia</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Header Applicazione -->
+  <header class="app-header">
+    <div class="brand">
+      <img src="/static/icons/icon-192.png" alt="Rose Creator" class="brand-icon">
+      <div>
+        <h1 class="brand-title">Rose Creator by Giuseppe Maffia</h1>
+        <p class="brand-sub">Football team list generator • Web & Mobile</p>
+      </div>
+    </div>
+
+    <!-- Switcher Schede -->
+    <nav class="tabs-nav">
+      <button id="tab-btn-seriea" class="tab-btn active">
+        <span>⚽</span> <span>Serie A</span>
+      </button>
+      <button id="tab-btn-single" class="tab-btn">
+        <span>📋</span> <span>Singola Rosa</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- Layout Principale -->
+  <main class="main-layout">
+
+    <!-- Colonna Sinistra (Selettore Partite o Squadre) -->
+    <section class="card" style="display: flex; flex-direction: column; max-height: calc(100vh - 100px);">
+      
+      <!-- VISTA 1: PARTITE SERIE A -->
+      <div id="view-seriea" style="display: block; padding: 14px; overflow-y: auto; flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap;">
+          <span id="seriea-round-badge" style="font-size: 0.9rem; font-weight: 700; color: var(--accent-green);">
+            Serie A • Caricamento...
+          </span>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <div style="background: #111420; border: 1px solid var(--card-border); border-radius: 8px; padding: 2px; display: flex; gap: 2px;">
+              <button id="filter-all" class="tab-btn active" style="padding: 4px 10px; font-size: 0.75rem;" onclick="filterMatches('all')">Tutte</button>
+              <button id="filter-today" class="tab-btn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="filterMatches('today')">Oggi</button>
+            </div>
+            <button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="loadSerieAMatches(true)" title="Ricarica dati live">🔄</button>
+          </div>
+        </div>
+
+        <div id="seriea-status" style="font-size: 0.75rem; color: var(--text-sec); margin-bottom: 12px; padding: 6px 10px; background: #0c0e15; border-radius: 6px; border: 1px solid var(--card-border);">
+          ● Inizializzazione dati...
+        </div>
+
+        <!-- Elenco Card Partite -->
+        <div id="matches-list"></div>
+      </div>
+
+      <!-- VISTA 2: SINGOLA SQUADRA (MONDIALE) -->
+      <div id="view-single" style="display: none; padding: 18px; overflow-y: auto; flex: 1;">
+        <h2 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; color: var(--accent-green);">
+          Estrazione Singola Squadra (Mondiale)
+        </h2>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-sec); margin-bottom: 6px;">1. Seleziona Nazione:</label>
+            <select id="sel-nation" style="width: 100%; padding: 10px; background: var(--input-bg); color: var(--text-pri); border: 1px solid var(--card-border); border-radius: 8px; font-size: 0.9rem;" onchange="onSelectNation()"></select>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-sec); margin-bottom: 6px;">2. Seleziona Campionato:</label>
+            <select id="sel-league" style="width: 100%; padding: 10px; background: var(--input-bg); color: var(--text-pri); border: 1px solid var(--card-border); border-radius: 8px; font-size: 0.9rem;" onchange="onSelectLeague()"></select>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-sec); margin-bottom: 6px;">3. Seleziona Squadra:</label>
+            <select id="sel-team" style="width: 100%; padding: 10px; background: var(--input-bg); color: var(--text-pri); border: 1px solid var(--card-border); border-radius: 8px; font-size: 0.9rem; font-weight: 600;"></select>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-sec); margin-bottom: 6px;">Iniziale personalizzata (opzionale):</label>
+            <input type="text" id="single-abbr" maxlength="2" placeholder="Auto" style="width: 80px; padding: 8px; background: var(--input-bg); color: var(--text-pri); border: 1px solid var(--card-border); border-radius: 8px; font-family: Menlo, monospace; font-size: 0.9rem; text-align: center; font-weight: 700;">
+          </div>
+
+          <button class="btn-extract" style="margin-top: 8px; padding: 12px;" onclick="extractSingleTeam()">
+            ⚡ ESTRAI DOPPIA ROSA (bX & bbX)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Colonna Destra: Output Doppia Lista & Comandi -->
+    <section class="output-column">
+      
+      <!-- Toolbar Output -->
+      <div class="card" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h2 id="output-title" style="font-size: 0.95rem; font-weight: 700;">⚽ Seleziona una partita o squadra</h2>
+          <span id="output-ref-badge" class="badge-ref" style="display: none;"></span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-copy" class="btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+            <span>📋</span> <span>Copia Tutto</span>
+          </button>
+          <button id="btn-download" class="btn-primary" style="display: flex; align-items: center; gap: 6px;">
+            <span>💾</span> <span>Scarica .txt</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra Parametri Iniziali & Rigenerazione Rapida -->
+      <div class="card" style="padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-sec);">Sigla Casa:</span>
+          <input type="text" id="entry-ha" class="abbr-input" value="h" maxlength="2">
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-sec); margin-left: 6px;">Sigla Trasf:</span>
+          <input type="text" id="entry-aa" class="abbr-input" value="a" maxlength="2">
+          <button id="btn-rigenera" class="btn-primary" style="padding: 5px 12px; font-size: 0.78rem; margin-left: 8px;">
+            ⚡ Rigenera
+          </button>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">
+          Modifica le iniziali e clicca Rigenera
+        </span>
+      </div>
+
+      <!-- Area di Testo Output -->
+      <textarea id="output-text" class="output-textarea" readonly spellcheck="false"># MODALITÀ WEB & MOBILE (1-CLICK CREATOR):
+# 1. Seleziona una partita a sinistra dal calendario ufficiale della Serie A.
+# 2. Le designazioni arbitrali CAN vengono incrociate in automatico dall'AIA-FIGC.
+# 3. Puoi personalizzare le iniziali delle due squadre direttamente sulle card o nella barra sopra.
+# 4. Tocca '⚡ Estrai Partita' per generare con 1 click entrambe le rose complete, i mister, i cori tifosi e la riga ufficiale dell'arbitro.
+# 5. Tocca '📋 Copia Tutto' per incollare subito dove ti serve o '💾 Scarica .txt' per salvare il file!</textarea>
+
+    </section>
+
+  </main>
+
+  <!-- Toast Notifica Rapida -->
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
