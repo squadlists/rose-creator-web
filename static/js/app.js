@@ -136,7 +136,11 @@ async function loadSerieAMatches(refresh = false) {
 
     renderSerieAMatches();
   } catch (err) {
-    statusLbl.textContent = `● Errore: ${err.message}`;
+    let msg = err.message || '';
+    if (msg.includes('Load failed') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('FetchEvent')) {
+      msg = 'Server offline o tunnel scaduto. Riavvia ./start_cloud.sh sul Mac e ricarica.';
+    }
+    statusLbl.textContent = `● Errore: ${msg}`;
     statusLbl.style.color = '#ef4444';
   }
 }
@@ -292,8 +296,12 @@ async function extractMatch(m, ha, aa) {
       document.querySelector('.output-column').scrollIntoView({ behavior: 'smooth' });
     }
   } catch (err) {
-    textarea.value = `Errore durante l'estrazione:\n${err.message}`;
-    showToast(`Errore: ${err.message}`, '#ef4444');
+    let msg = err.message || '';
+    if (msg.includes('Load failed') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('FetchEvent')) {
+      msg = 'Server offline o tunnel scaduto. Riavvia ./start_cloud.sh sul Mac.';
+    }
+    textarea.value = `Errore durante l'estrazione:\n${msg}`;
+    showToast(`Errore: ${msg}`, '#ef4444');
   }
 }
 
@@ -419,8 +427,12 @@ async function extractSingleTeam() {
 
     showToast(`● ${teamName} (${data.players_count} calciatori) estratta!`, '#00c853');
   } catch (e) {
-    textarea.value = `Errore estrazione:\n${e.message}`;
-    showToast(`Errore: ${e.message}`, '#ef4444');
+    let msg = e.message || '';
+    if (msg.includes('Load failed') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('FetchEvent')) {
+      msg = 'Server offline o tunnel scaduto. Riavvia ./start_cloud.sh sul Mac.';
+    }
+    textarea.value = `Errore estrazione:\n${msg}`;
+    showToast(`Errore: ${msg}`, '#ef4444');
   }
 }
 

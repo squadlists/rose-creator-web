@@ -4,21 +4,26 @@ Generatore professionale di rose calcistiche e formazioni per l'agenzia Getty Im
 
 Ottimizzato sia per **Desktop** sia per **Mobile (iPhone / iPad / Android)** con tecnologia **PWA (Progressive Web App)**.
 
+## 🌐 Link Cloud Pubblico Attivo Adesso (Senza GitHub!)
+
+Il tuo tunnel cloud pubblico è già attivo e accessibile via HTTPS:
+👉 **`https://humanitarian-coupons-bufing-helen.trycloudflare.com`**
+
+Funziona da qualsiasi smartphone (iPhone / Android) e da qualsiasi rete (anche 4G / 5G fuori casa)!
+
 ---
 
-## 🚀 1. Come Provorlo Subito in Locale (Mac & iPhone)
+## 🚀 1. Come Avviarla in Locale o Riavviare il Cloud
 
-Puoi avviare il server direttamente dal tuo Mac e usarlo subito sia dal browser del computer sia dal tuo smartphone collegato alla stessa rete Wi-Fi:
-
-1. Apri il Terminale ed entra nella cartella:
-   ```bash
-   cd ~/.gemini/antigravity/scratch/rose_creator_web
-   ```
-
-2. Avvia il server:
-   ```bash
-   ./venv/bin/python run_local.py
-   ```
+- Per riavviare il tunnel cloud pubblico in qualsiasi momento:
+  ```bash
+  cd ~/.gemini/antigravity/scratch/rose_creator_web
+  ./start_cloud.sh
+  ```
+- Per avviarla solo in rete locale:
+  ```bash
+  ./venv/bin/python run_local.py
+  ```
 
 3. Lo script ti mostrerà gli indirizzi:
    - **Dal Mac**: apri [http://localhost:8000](http://localhost:8000)

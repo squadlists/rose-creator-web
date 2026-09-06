@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+bin/
+tunnel.log
+static/logos_cache/

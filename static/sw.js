@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rose-creator-v3';
+const CACHE_NAME = 'rose-creator-v4';
 const ASSETS = [
   '/',
   '/static/css/style.css',
@@ -31,15 +31,15 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Never intercept dynamic API calls - let the browser handle them natively
   if (e.request.url.includes('/api/')) {
-    // Always fetch dynamic API calls from network
-    e.respondWith(fetch(e.request));
-  } else {
-    // Cache-first strategy for static assets
-    e.respondWith(
-      caches.match(e.request).then((res) => {
-        return res || fetch(e.request);
-      })
-    );
+    return;
   }
+
+  // Cache-first strategy for static assets with network fallback
+  e.respondWith(
+    caches.match(e.request).then((res) => {
+      return res || fetch(e.request);
+    })
+  );
 });
