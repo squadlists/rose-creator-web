@@ -4,12 +4,13 @@ Generatore professionale di rose calcistiche e formazioni per l'agenzia Getty Im
 
 Ottimizzato sia per **Desktop** sia per **Mobile (iPhone / iPad / Android)** con tecnologia **PWA (Progressive Web App)**.
 
-## 🌐 Link Cloud Pubblico Attivo Adesso (Senza GitHub!)
+## 🌐 Link Ufficiale Permanente (Attivo 24/7)
 
-Il tuo tunnel cloud pubblico è già attivo e accessibile via HTTPS:
-👉 **`https://humanitarian-coupons-bufing-helen.trycloudflare.com`**
+Il sito è online in cloud ad accesso continuo:
+👉 **`https://rose-creator-web.onrender.com`**
 
-Funziona da qualsiasi smartphone (iPhone / Android) e da qualsiasi rete (anche 4G / 5G fuori casa)!
+Funziona da qualsiasi smartphone (iPhone / Android) e da qualsiasi rete (anche 4G / 5G fuori casa, con il computer spento)!
+
 
 ---
 
