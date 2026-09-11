@@ -60,48 +60,12 @@ async def health_check():
 
 @app.get("/api/debug/aia")
 async def debug_aia():
-    import traceback, urllib.request, ssl
-    from bs4 import BeautifulSoup
-    report = {}
-    
-    # 1. Test organici CAN
-    try:
-        req = urllib.request.Request("https://www.aia-figc.it/organici/can/", headers=WEB_HDR)
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
-            report["organici_status"] = resp.status
-            report["organici_bytes"] = len(resp.read())
-    except urllib.error.HTTPError as e:
-        report["organici_error"] = str(e)
-        body = e.fp.read().decode("utf-8", errors="ignore")[:500]
-        report["organici_body"] = body
-        report["organici_headers"] = dict(e.headers)
-    except Exception as e:
-        report["organici_error"] = str(e)
-
-    # 2. Test with requests library
-    try:
-        import requests
-        s = requests.Session()
-        s.headers.update(WEB_HDR)
-        r = s.get("https://www.aia-figc.it/designazioni/can/", timeout=10)
-        report["requests_status"] = r.status_code
-        report["requests_headers"] = dict(r.headers)
-        report["requests_snippet"] = r.text[:300]
-    except Exception as e:
-        report["requests_error"] = str(e)
-
-    # 3. Test get_aia_referee_designations()
-    try:
-        pair_map, single_map, round_title = get_aia_referee_designations()
-        report["round_title"] = round_title
-        report["pair_map_count"] = len(pair_map)
-        report["sample_pairs"] = [f"{k[0]} vs {k[1]} -> {v}" for k, v in list(pair_map.items())[:5]]
-    except Exception as e:
-        report["referee_func_error"] = str(e)
-        report["referee_func_traceback"] = traceback.format_exc()
-
-    return report
+    pair_map, single_map, round_title = get_aia_referee_designations()
+    return {
+        "round_title": round_title,
+        "pair_map_count": len(pair_map),
+        "sample_pairs": [f"{k[0]} vs {k[1]} -> {v}" for k, v in list(pair_map.items())[:10]]
+    }
 
 # ─────────────────────────────────────────────────────────
 #   SERIE A & AIA CAN ENDPOINTS
@@ -140,7 +104,7 @@ async def get_serie_a_matches(refresh: bool = False):
             m["def_ha"] = def_ha
             m["def_aa"] = def_aa
 
-        clean_badge = "3ª Giornata"
+        clean_badge = "Serie A"
         if round_title:
             clean_badge = round_title.replace("ENILIVE - ", "").replace("DESIGNAZIONI ", "").strip().title()
             if len(clean_badge) > 35 or "News" in clean_badge:
@@ -149,14 +113,18 @@ async def get_serie_a_matches(refresh: bool = False):
                 if m_g:
                     clean_badge = m_g.group(1).title()
                 else:
-                    clean_badge = "3ª Giornata"
+                    clean_badge = "Serie A"
         result = {
             "round_title": clean_badge,
             "count": len(matches),
             "matches": matches
         }
-        _SERIE_A_CACHE["timestamp"] = now
-        _SERIE_A_CACHE["data"] = result
+        
+        # Only cache if we successfully retrieved referees
+        has_referees = any(m.get("referee") and m.get("referee") != "Da definire" for m in matches)
+        if has_referees:
+            _SERIE_A_CACHE["timestamp"] = now
+            _SERIE_A_CACHE["data"] = result
         return result
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))

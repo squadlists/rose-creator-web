@@ -533,6 +533,60 @@ def formatta_doppia_rosa_singola(squadra, giocatori, allenatore=None, formato="s
 # ─────────────────────────────────────────────────────────
 #   SCRAPING AIA CAN & LEGA SERIE A
 # ─────────────────────────────────────────────────────────
+#   ORGANICO CAN & SCRAPING ARBITRI (AIA-FIGC + SKY SPORT FALLBACK)
+# ─────────────────────────────────────────────────────────
+CAN_ROSTER_STATIC = {
+    "ABISSO": "Rosario Abisso",
+    "ALLEGRETTA": "Claudio Giuseppe Allegretta",
+    "ARENA": "Alberto Ruben Arena",
+    "AYROLDI": "Giovanni Ayroldi",
+    "BELLO": "Marco Di Bello",
+    "BONACINA": "Kevin Bonacina",
+    "CALZAVARA": "Andrea Calzavara",
+    "CAPUTI": "Maria Sole Ferrieri Caputi",
+    "CHIFFI": "Daniele Chiffi",
+    "COLLU": "Giuseppe Collu",
+    "COLOMBO": "Andrea Colombo",
+    "CREZZINI": "Valerio Crezzini",
+    "DI BELLO": "Marco Di Bello",
+    "DI LORETO": "Marco Di Loreto",
+    "DI MARCO": "Davide Di Marco",
+    "DOVERI": "Daniele Doveri",
+    "DRIGO": "Mattia Drigo",
+    "FABBRI": "Michael Fabbri",
+    "FELICIANI": "Ermanno Feliciani",
+    "FERRIERI CAPUTI": "Maria Sole Ferrieri Caputi",
+    "FOURNEAU": "Francesco Fourneau",
+    "GALIPO": "Simone Galipo'",
+    "GALIPO'": "Simone Galipo'",
+    "GUIDA": "Marco Guida",
+    "LA PENNA": "Federico La Penna",
+    "LORETO": "Marco Di Loreto",
+    "MADONIA": "Dario Madonia",
+    "MANGANIELLO": "Gianluca Manganiello",
+    "MARCENARO": "Matteo Marcenaro",
+    "MARCHETTI": "Matteo Marchetti",
+    "MARCO": "Davide Di Marco",
+    "MARESCA": "Fabio Maresca",
+    "MARIANI": "Maurizio Mariani",
+    "MARINELLI": "Livio Marinelli",
+    "MASSA": "Davide Massa",
+    "MAZZONI": "Edoardo Manedo Mazzoni",
+    "MUCERA": "Giuseppe Mucera",
+    "PAIRETTO": "Luca Pairetto",
+    "PENNA": "Federico La Penna",
+    "PERENZONI": "Daniele Perenzoni",
+    "PERRI": "Mario Perri",
+    "POLI": "Alberto Poli",
+    "RAPUANO": "Antonio Rapuano",
+    "SACCHI": "Juan Luca Sacchi",
+    "SOZZA": "Simone Sozza",
+    "TREMOLADA": "Paride Tremolada",
+    "TURRINI": "Niccolo' Turrini",
+    "ZANOTTI": "Andrea Zanotti",
+    "ZUFFERLI": "Luca Zufferli"
+}
+
 _CAN_ROSTER_CACHE = {}
 
 def get_can_roster():
@@ -567,14 +621,94 @@ def get_can_roster():
                 roster[surname_key] = clean_name
                 if upper_words:
                     roster[upper_words[-1]] = clean_name
-        _CAN_ROSTER_CACHE = roster
-        return roster
-    except Exception as e:
-        return {}
+        if roster:
+            _CAN_ROSTER_CACHE = {**CAN_ROSTER_STATIC, **roster}
+            return _CAN_ROSTER_CACHE
+    except Exception:
+        pass
+    _CAN_ROSTER_CACHE = CAN_ROSTER_STATIC.copy()
+    return _CAN_ROSTER_CACHE
+
+def get_sky_referee_designations(roster=None):
+    """Fallback resiliente da Sky Sport per server cloud (Render/AWS) che non bloccano il traffico."""
+    if not roster:
+        roster = get_can_roster()
+    try:
+        r = requests.get("https://sport.sky.it/calcio/serie-a", headers=WEB_HDR, timeout=8)
+        if r.status_code != 200:
+            return {}, {}, ""
+        soup = BeautifulSoup(r.text, "html.parser")
+        article_url = None
+        round_title = "Serie A"
+        for a in soup.find_all("a", href=True):
+            txt = a.get_text().strip()
+            if "designazion" in txt.lower() or "arbitr" in txt.lower():
+                if "serie-a" in a["href"]:
+                    article_url = a["href"]
+                    m = re.search(r"(\d+)\^?\s*giornata", txt, re.I)
+                    if m:
+                        round_title = f"{m.group(1)}ª Giornata"
+                    break
+        if not article_url:
+            return {}, {}, ""
+
+        r2 = requests.get(article_url, headers=WEB_HDR, timeout=8)
+        if r2.status_code != 200:
+            return {}, {}, ""
+        soup2 = BeautifulSoup(r2.text, "html.parser")
+        article = soup2.find("article") or soup2
+
+        pair_map = {}
+        single_map = {}
+        p_tags = [p.get_text().strip() for p in article.find_all(["p", "h2", "h3"]) if p.get_text().strip()]
+        for i, p in enumerate(p_tags):
+            if len(p) > 100:
+                continue
+            if any(sep in p for sep in ["–", "-", "—"]) and any(w in p.lower() for w in ["ore", "venerd", "sabat", "domenic", "luned", "marted", "mercoled", "gioved"]):
+                parts = re.split(r"[–—\-]", p)
+                if len(parts) >= 2:
+                    h_team = unidecode(parts[0]).strip().lower()
+                    a_raw = parts[1].strip()
+                    a_clean = re.split(r"\b(venerd[iì]|sabat[o]|domenic[a]|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|ore|\d{1,2}[\.:]\d{2})\b", a_raw, flags=re.I)[0].strip()
+                    a_team = unidecode(a_clean).strip().lower()
+
+                    ref_raw = ""
+                    if i + 1 < len(p_tags):
+                        cand = re.sub(r"\(.*?\)", "", p_tags[i+1].strip()).strip()
+                        if ":" not in cand and len(cand) < 30 and not any(k in cand.lower() for k in ["ore", "live", "assistenti", "–", "-"]):
+                            ref_raw = cand
+
+                    ref_clean = re.sub(r"[^A-Z\s]", "", unidecode(ref_raw).upper()).strip()
+                    ref_full = roster.get(ref_clean)
+                    if not ref_full:
+                        for w in ref_clean.split():
+                            if w in roster:
+                                ref_full = roster[w]
+                                break
+                    if not ref_full:
+                        for skey, sfull in roster.items():
+                            if len(skey) > 3 and skey in ref_clean:
+                                ref_full = sfull
+                                break
+                    if not ref_full:
+                        ref_full = ref_raw.title() if ref_raw else "Da definire"
+
+                    pair_map[(h_team, a_team)] = ref_full
+                    single_map[h_team] = ref_full
+                    single_map[a_team] = ref_full
+
+        return pair_map, single_map, round_title
+    except Exception:
+        return {}, {}, ""
 
 def get_aia_referee_designations():
-    """Recupera l'abbinamento partita -> arbitro dall'ultimo articolo Serie A su AIA CAN."""
+    """Recupera l'abbinamento partita -> arbitro. Tenta prima AIA CAN ufficiale, poi fallback automatico a Sky Sport."""
     roster = get_can_roster()
+    pair_map = {}
+    single_map = {}
+    round_title = ""
+
+    # 1. Tentativo ufficiale AIA-FIGC CAN
     try:
         req = urllib.request.Request("https://www.aia-figc.it/designazioni/can/", headers=WEB_HDR)
         with urllib.request.urlopen(req, timeout=6) as resp:
@@ -582,7 +716,6 @@ def get_aia_referee_designations():
         soup = BeautifulSoup(html, "html.parser")
         
         serie_a_link = None
-        round_title = ""
         for a in soup.find_all("a", href=True):
             txt = a.get_text()
             if "SERIE A" in txt.upper() and "DESIGNAZIONI" in txt.upper():
@@ -590,66 +723,64 @@ def get_aia_referee_designations():
                 round_title = txt.strip()
                 break
                 
-        if not serie_a_link:
-            return {}, {}, round_title
-            
-        if not serie_a_link.startswith("http"):
-            serie_a_link = "https://www.aia-figc.it" + ("/" if not serie_a_link.startswith("/") else "") + serie_a_link
-            
-        req2 = urllib.request.Request(serie_a_link, headers=WEB_HDR)
-        with urllib.request.urlopen(req2, timeout=6) as resp2:
-            art_html = resp2.read().decode("utf-8", errors="ignore")
-            
-        art_soup = BeautifulSoup(art_html, "html.parser")
-        content_div = art_soup.find("section", id="content") or art_soup
-        p_tags = [p.get_text().strip() for p in content_div.find_all("p") if p.get_text().strip()]
-        
-        pair_map = {}
-        single_map = {}
-        
-        for i, p in enumerate(p_tags):
-            if any(sep in p for sep in ["–", "-", "—"]) and any(d in p.lower() for d in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì", "h.", "h "]):
-                match_part = p
-                for kw in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì"]:
-                    if kw in match_part.lower():
-                        match_part = re.split(kw, match_part, flags=re.I)[0].strip()
-                        break
+        if serie_a_link:
+            if not serie_a_link.startswith("http"):
+                serie_a_link = "https://www.aia-figc.it" + ("/" if not serie_a_link.startswith("/") else "") + serie_a_link
                 
-                parts = re.split(r'[–—\-]', match_part)
-                if len(parts) >= 2:
-                    h_team = unidecode(parts[0]).strip().lower()
-                    a_team = unidecode(parts[1]).strip().lower()
+            req2 = urllib.request.Request(serie_a_link, headers=WEB_HDR)
+            with urllib.request.urlopen(req2, timeout=6) as resp2:
+                art_html = resp2.read().decode("utf-8", errors="ignore")
+                
+            art_soup = BeautifulSoup(art_html, "html.parser")
+            content_div = art_soup.find("section", id="content") or art_soup
+            p_tags = [p.get_text().strip() for p in content_div.find_all("p") if p.get_text().strip()]
+            
+            for i, p in enumerate(p_tags):
+                if any(sep in p for sep in ["–", "-", "—"]) and any(d in p.lower() for d in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì", "h.", "h "]):
+                    match_part = p
+                    for kw in ["venerdì", "venerdi", "sabato", "domenica", "lunedì", "lunedi", "mercoledì", "martedì", "giovedì"]:
+                        if kw in match_part.lower():
+                            match_part = re.split(kw, match_part, flags=re.I)[0].strip()
+                            break
                     
-                    ref_raw = ""
-                    if i + 1 < len(p_tags):
-                        cand = p_tags[i+1].strip()
-                        cand = re.sub(r'\(.*?\)', '', cand).strip()
-                        if ":" not in cand and "–" not in cand and len(cand) < 35:
-                            ref_raw = cand
-                            
-                    # Cerca match su organico CAN
-                    ref_clean = re.sub(r'[^A-Z\s]', '', ref_raw.upper()).strip()
-                    ref_full = None
-                    if ref_clean in roster:
-                        ref_full = roster[ref_clean]
-                    elif ref_clean.split() and ref_clean.split()[-1] in roster:
-                        ref_full = roster[ref_clean.split()[-1]]
-                    else:
-                        for skey, sfullname in roster.items():
-                            if len(skey) > 3 and skey in ref_raw.upper():
-                                ref_full = sfullname
-                                break
-                                
-                    if not ref_full:
-                        ref_full = ref_raw.title() if ref_raw else "Da definire"
+                    parts = re.split(r'[–—\-]', match_part)
+                    if len(parts) >= 2:
+                        h_team = unidecode(parts[0]).strip().lower()
+                        a_team = unidecode(parts[1]).strip().lower()
                         
-                    pair_map[(h_team, a_team)] = ref_full
-                    single_map[h_team] = ref_full
-                    single_map[a_team] = ref_full
-                    
-        return pair_map, single_map, round_title
-    except Exception as e:
-        return {}, {}, ""
+                        ref_raw = ""
+                        if i + 1 < len(p_tags):
+                            cand = p_tags[i+1].strip()
+                            cand = re.sub(r'\(.*?\)', '', cand).strip()
+                            if ":" not in cand and "–" not in cand and len(cand) < 35:
+                                ref_raw = cand
+                                
+                        ref_clean = re.sub(r'[^A-Z\s]', '', ref_raw.upper()).strip()
+                        ref_full = roster.get(ref_clean)
+                        if not ref_full and ref_clean.split():
+                            ref_full = roster.get(ref_clean.split()[-1])
+                        if not ref_full:
+                            for skey, sfullname in roster.items():
+                                if len(skey) > 3 and skey in ref_raw.upper():
+                                    ref_full = sfullname
+                                    break
+                        if not ref_full:
+                            ref_full = ref_raw.title() if ref_raw else "Da definire"
+                            
+                        pair_map[(h_team, a_team)] = ref_full
+                        single_map[h_team] = ref_full
+                        single_map[a_team] = ref_full
+    except Exception:
+        pass
+
+    # 2. Se AIA-FIGC è bloccato (es. 403 su server cloud Render), fallback automatico su Sky Sport
+    if not pair_map:
+        sky_pairs, sky_singles, sky_round = get_sky_referee_designations(roster)
+        if sky_pairs:
+            pair_map = sky_pairs
+            single_map = sky_singles
+            if not round_title:
+                round_title = sky_round
 
     return pair_map, single_map, round_title
 
