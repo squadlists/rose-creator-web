@@ -58,15 +58,6 @@ async def serve_sw():
 async def health_check():
     return {"status": "ok", "app": "Rose Creator", "version": "3.0", "author": "Giuseppe Maffia"}
 
-@app.get("/api/debug/aia")
-async def debug_aia():
-    pair_map, single_map, round_title = get_aia_referee_designations()
-    return {
-        "round_title": round_title,
-        "pair_map_count": len(pair_map),
-        "sample_pairs": [f"{k[0]} vs {k[1]} -> {v}" for k, v in list(pair_map.items())[:10]]
-    }
-
 # ─────────────────────────────────────────────────────────
 #   SERIE A & AIA CAN ENDPOINTS
 # ─────────────────────────────────────────────────────────
