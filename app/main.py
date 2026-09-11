@@ -71,28 +71,25 @@ async def debug_aia():
         with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
             report["organici_status"] = resp.status
             report["organici_bytes"] = len(resp.read())
+    except urllib.error.HTTPError as e:
+        report["organici_error"] = str(e)
+        body = e.fp.read().decode("utf-8", errors="ignore")[:500]
+        report["organici_body"] = body
+        report["organici_headers"] = dict(e.headers)
     except Exception as e:
         report["organici_error"] = str(e)
-        report["organici_traceback"] = traceback.format_exc()
 
-    # 2. Test designazioni CAN
+    # 2. Test with requests library
     try:
-        req = urllib.request.Request("https://www.aia-figc.it/designazioni/can/", headers=WEB_HDR)
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
-            report["designazioni_status"] = resp.status
-            content = resp.read().decode("utf-8", errors="ignore")
-            report["designazioni_bytes"] = len(content)
-            soup = BeautifulSoup(content, "html.parser")
-            links = []
-            for a in soup.find_all("a", href=True):
-                txt = a.get_text()
-                if "SERIE A" in txt.upper() or "DESIGNAZIONI" in txt.upper():
-                    links.append({"text": txt.strip(), "href": a["href"]})
-            report["matching_links"] = links
+        import requests
+        s = requests.Session()
+        s.headers.update(WEB_HDR)
+        r = s.get("https://www.aia-figc.it/designazioni/can/", timeout=10)
+        report["requests_status"] = r.status_code
+        report["requests_headers"] = dict(r.headers)
+        report["requests_snippet"] = r.text[:300]
     except Exception as e:
-        report["designazioni_error"] = str(e)
-        report["designazioni_traceback"] = traceback.format_exc()
+        report["requests_error"] = str(e)
 
     # 3. Test get_aia_referee_designations()
     try:
