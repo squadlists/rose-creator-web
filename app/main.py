@@ -22,7 +22,8 @@ from app.core import (
     estrai_squadre,
     to_getty_team_name,
     LOGOS_DIR,
-    BASE_DIR
+    BASE_DIR,
+    WEB_HDR
 )
 
 app = FastAPI(
@@ -56,6 +57,54 @@ async def serve_sw():
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "app": "Rose Creator", "version": "3.0", "author": "Giuseppe Maffia"}
+
+@app.get("/api/debug/aia")
+async def debug_aia():
+    import traceback, urllib.request, ssl
+    from bs4 import BeautifulSoup
+    report = {}
+    
+    # 1. Test organici CAN
+    try:
+        req = urllib.request.Request("https://www.aia-figc.it/organici/can/", headers=WEB_HDR)
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            report["organici_status"] = resp.status
+            report["organici_bytes"] = len(resp.read())
+    except Exception as e:
+        report["organici_error"] = str(e)
+        report["organici_traceback"] = traceback.format_exc()
+
+    # 2. Test designazioni CAN
+    try:
+        req = urllib.request.Request("https://www.aia-figc.it/designazioni/can/", headers=WEB_HDR)
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            report["designazioni_status"] = resp.status
+            content = resp.read().decode("utf-8", errors="ignore")
+            report["designazioni_bytes"] = len(content)
+            soup = BeautifulSoup(content, "html.parser")
+            links = []
+            for a in soup.find_all("a", href=True):
+                txt = a.get_text()
+                if "SERIE A" in txt.upper() or "DESIGNAZIONI" in txt.upper():
+                    links.append({"text": txt.strip(), "href": a["href"]})
+            report["matching_links"] = links
+    except Exception as e:
+        report["designazioni_error"] = str(e)
+        report["designazioni_traceback"] = traceback.format_exc()
+
+    # 3. Test get_aia_referee_designations()
+    try:
+        pair_map, single_map, round_title = get_aia_referee_designations()
+        report["round_title"] = round_title
+        report["pair_map_count"] = len(pair_map)
+        report["sample_pairs"] = [f"{k[0]} vs {k[1]} -> {v}" for k, v in list(pair_map.items())[:5]]
+    except Exception as e:
+        report["referee_func_error"] = str(e)
+        report["referee_func_traceback"] = traceback.format_exc()
+
+    return report
 
 # ─────────────────────────────────────────────────────────
 #   SERIE A & AIA CAN ENDPOINTS
